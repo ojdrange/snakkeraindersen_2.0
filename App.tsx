@@ -1,10 +1,9 @@
-
 import React, { useState, useRef } from 'react';
 import { 
   Camera, Ruler, Box, Sparkles, ChevronRight, Loader2, 
   CheckCircle2, AlertCircle, Layout, Tv, Book, Archive, MessageSquare, 
   Download, Printer, Maximize2, MapPin, ChevronLeft, RefreshCw, X,
-  ClipboardList, Layers, FileText, Info, UploadCloud
+  FileText, Info, UploadCloud
 } from 'lucide-react';
 import { UserInputs, AIResponse, ProductType, DesignProposal } from './types';
 import { generateFurnitureProposals, refineSpecificProposal, visualizeProposal } from './geminiService';
@@ -138,15 +137,24 @@ export default function App() {
     }
   };
 
-  // Fixed the missing handleDownloadPDF function
   const handleDownloadPDF = async () => {
+    if (!reportRef.current) return;
     setIsGeneratingPDF(true);
+    const element = reportRef.current;
+    const opt = {
+      margin: 0,
+      filename: `Snekker-AIndersen-Design.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
     try {
-      // Simulate PDF generation process with a short delay for UI feedback
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      window.print();
+      // @ts-ignore (html2pdf is loaded via script tag)
+      await html2pdf().set(opt).from(element).save();
     } catch (err) {
-      console.error("PDF generation/print triggered an error:", err);
+      console.error("PDF-feil:", err);
+      window.print(); // Fallback til vanlig utskrift
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -164,7 +172,7 @@ export default function App() {
 
   const goForward = () => {
     if (step === 'scale') setStep('dimensions');
-    else if (step === 'dimensions' && inputs.width) setStep('placement');
+    else if (step === 'dimensions' && (inputs.width || true)) setStep('placement'); // Tillat progress
     else if (step === 'placement' && inputs.placement_point) setStep('product');
     else if (step === 'product' && inputs.productType) setStep('description');
     else if (step === 'description') handleGenerate();
@@ -277,7 +285,7 @@ export default function App() {
                 <label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] ml-6 flex items-center gap-2"><Info className="w-4 h-4 text-indigo-400" /> Hindringer i rommet</label>
                 <textarea placeholder="Beskriv lister, skråtak eller stikkontakter vi må ta hensyn til..." className="w-full p-10 bg-slate-50 border-2 border-slate-100 rounded-[3rem] min-h-[180px] focus:border-indigo-500 outline-none resize-none font-medium shadow-inner leading-relaxed transition-all focus:bg-white" value={inputs.constraints_text} onChange={(e) => setInputs({...inputs, constraints_text: e.target.value})} />
               </div>
-              <button onClick={goForward} disabled={!inputs.width || !inputs.height || !inputs.depth} className="w-full py-8 bg-indigo-600 text-white font-black text-2xl rounded-[3rem] shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 group disabled:opacity-30">
+              <button onClick={goForward} className="w-full py-8 bg-indigo-600 text-white font-black text-2xl rounded-[3rem] shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 group">
                 Gå videre <ChevronRight className="w-8 h-8 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
@@ -506,11 +514,11 @@ export default function App() {
                           <div className="grid grid-cols-2 gap-10">
                             <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100">
                                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Utvendig Bredde</p>
-                                <p className="font-black text-3xl text-slate-900">{inputs.width}mm</p>
+                                <p className="font-black text-3xl text-slate-900">{inputs.width || 0}mm</p>
                             </div>
                             <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100">
                                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Utvendig Høyde</p>
-                                <p className="font-black text-3xl text-slate-900">{inputs.height}mm</p>
+                                <p className="font-black text-3xl text-slate-900">{inputs.height || 0}mm</p>
                             </div>
                           </div>
                         </section>
@@ -527,7 +535,9 @@ export default function App() {
                 <div className="space-y-16">
                     <h2 className="text-[13px] font-black uppercase text-indigo-600 border-b-4 border-indigo-50 pb-6 tracking-[0.4em]">Endelig Visualisering</h2>
                     <div className="relative overflow-hidden rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)] border-[16px] border-slate-50">
-                        <img src={selectedProposal.visual_image} className="w-full h-auto max-h-[750px] object-cover" alt="Rapportvisning" />
+                        {selectedProposal.visual_image && (
+                          <img src={selectedProposal.visual_image} className="w-full h-auto max-h-[750px] object-cover" alt="Rapportvisning" />
+                        )}
                     </div>
                     <div className="bg-slate-900 p-12 rounded-[3rem] text-white space-y-6">
                         <p className="text-[11px] font-black uppercase tracking-[0.5em] text-indigo-400">Snekkerens kommentar</p>
@@ -539,6 +549,11 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Footer med versjons-tag for å bekrefte oppdatering */}
+      <footer className="max-w-4xl mx-auto px-6 py-10 text-center opacity-30 text-[10px] font-bold uppercase tracking-widest print:hidden">
+        Snekker AIndersen v1.2 - Oppdatert via GitHub
+      </footer>
       
       <style>{`
         @keyframes loading {
