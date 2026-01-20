@@ -48,12 +48,16 @@ const PROPOSAL_SCHEMA = {
   required: ['id', 'style_package', 'carcass', 'fronts', 'handle_solution', 'lighting', 'dimensions_mm', 'internal_layout', 'visual_notes', 'production_notes']
 };
 
-export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API-nøkkel mangler. Vennligst legg til API_KEY i Vercel-innstillingene.");
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("API_KEY mangler i kjøremiljøet. Sjekk Vercel Settings > Environment Variables.");
   }
+  return new GoogleGenAI({ apiKey });
+};
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
+  const ai = getAIClient();
 
   const systemInstruction = `
     Du er Snekker AIndersen, en erfaren norsk møbelkonstruktør.
@@ -103,31 +107,27 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
     });
 
     const text = response.text;
-    if (!text) {
-      throw new Error("Snekkeren klarte ikke å generere et svar. Vennligst prøv igjen.");
-    }
+    if (!text) throw new Error("Tomt svar fra AI-snekkeren.");
     return JSON.parse(text);
   } catch (err: any) {
-    console.error("Gemini API Error:", err);
-    throw new Error(err.message || "Feil under kontakt med AI-snekkeren.");
+    throw new Error(`Feil ved generering: ${err.message}`);
   }
 };
 
 export const visualizeProposal = async (baseImage: string, proposal: DesignProposal, inputs: UserInputs, refinementComment?: string): Promise<string | undefined> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  
-  const xPos = inputs.placement_point?.x || 50;
-  const yPos = inputs.placement_point?.y || 50;
-  
-  const prompt = `
-    OPPGAVE: Visualiser en fotorealistisk ${inputs.productType} integrert perfekt i rommet på bildet.
-    PLASSERING: x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
-    STIL: ${proposal.style_package}.
-    ${refinementComment ? `ENDRINGSØNSKE: "${refinementComment}".` : ''}
-    KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger.
-  `;
-
   try {
+    const ai = getAIClient();
+    const xPos = inputs.placement_point?.x || 50;
+    const yPos = inputs.placement_point?.y || 50;
+    
+    const prompt = `
+      OPPGAVE: Visualiser en fotorealistisk ${inputs.productType} integrert perfekt i rommet på bildet.
+      PLASSERING: x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
+      STIL: ${proposal.style_package}.
+      ${refinementComment ? `ENDRINGSØNSKE: "${refinementComment}".` : ''}
+      KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger.
+    `;
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -145,7 +145,6 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
 
     const candidate = response.candidates?.[0];
     const parts = candidate?.content?.parts;
-    
     if (parts) {
       for (const part of parts) {
         if (part.inlineData?.data) {
@@ -154,14 +153,13 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
       }
     }
   } catch (err) {
-    console.error("Visualization Error:", err);
+    console.error("Visualiseringsfeil:", err);
   }
-  
   return undefined;
 };
 
 export const refineSpecificProposal = async (original: DesignProposal, comment: string, _inputs: UserInputs): Promise<DesignProposal> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = getAIClient();
   const { visual_image, ...currentProposalData } = original;
 
   const response = await ai.models.generateContent({
@@ -175,8 +173,6 @@ export const refineSpecificProposal = async (original: DesignProposal, comment: 
   });
 
   const text = response.text;
-  if (!text) {
-    throw new Error("Kunne ikke oppdatere tegningen.");
-  }
+  if (!text) throw new Error("Kunne ikke oppdatere forslaget.");
   return JSON.parse(text);
 };
