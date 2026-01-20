@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Camera, Ruler, Box, Sparkles, ChevronRight, Loader2, ArrowLeft, 
@@ -74,22 +73,35 @@ export default function App() {
       const data = await generateFurnitureProposals(inputs);
       setResults(data);
       
-      setRenderProgress({ current: 0, total: data.design_proposals.length });
-      const updatedProposals = [...data.design_proposals];
-      
-      for (let i = 0; i < updatedProposals.length; i++) {
-        setRenderProgress({ current: i + 1, total: updatedProposals.length });
+      const total = data.design_proposals.length;
+      setRenderProgress({ current: 0, total });
+
+      // Start alle visualiseringer i parallell for raskere lasting
+      const visualizationPromises = data.design_proposals.map(async (proposal, index) => {
         try {
-          const visual = await visualizeProposal(inputs.image!, updatedProposals[i], inputs);
-          if (visual) {
-            updatedProposals[i] = { ...updatedProposals[i], visual_image: visual };
-            setResults({ ...data, design_proposals: [...updatedProposals] });
-          }
-        } catch (vErr) {
-          console.error("Visualization failed", vErr);
+          const visual = await visualizeProposal(inputs.image!, proposal, inputs);
+          return { id: proposal.id, visual };
+        } catch (err) {
+          console.error(`Visualization failed for ${proposal.id}`, err);
+          return { id: proposal.id, visual: undefined };
         }
-      }
+      });
+
+      // Oppdater progress underveis
+      let completedCount = 0;
+      visualizationPromises.forEach(p => p.then(() => {
+        completedCount++;
+        setRenderProgress({ current: completedCount, total });
+      }));
+
+      const visuals = await Promise.all(visualizationPromises);
       
+      const updatedProposals = data.design_proposals.map(p => {
+        const v = visuals.find(v => v.id === p.id);
+        return { ...p, visual_image: v?.visual || undefined };
+      });
+
+      setResults({ ...data, design_proposals: updatedProposals });
       setRenderProgress(null);
       setStep('results');
     } catch (err: any) {
@@ -212,7 +224,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto mt-8 px-4 print:mt-0 print:px-0">
+      <main className={`${step === 'results' ? 'max-w-[1400px]' : 'max-w-4xl'} mx-auto mt-8 px-4 print:mt-0 print:px-0 transition-all duration-700`}>
         
         {step === 'upload' && (
           <div className="flex flex-col items-center text-center space-y-12 py-16 animate-in fade-in slide-in-from-bottom-8">
@@ -401,7 +413,7 @@ export default function App() {
             </div>
             <div className="text-center space-y-4">
               <h2 className="text-4xl font-black text-slate-900 tracking-tight">
-                {renderProgress ? `Tegner variant 0${renderProgress.current}...` : 'Analyserer rommet...'}
+                {renderProgress ? `Tegner variant 0${renderProgress.current + 1}...` : 'Analyserer rommet...'}
               </h2>
               <p className="text-slate-400 font-bold text-lg">Våre AI-snekkere beregner konstruksjonen nå.</p>
               {renderProgress && (
@@ -414,52 +426,64 @@ export default function App() {
         )}
 
         {step === 'results' && results && (
-          <div className="space-y-16 animate-in fade-in">
+          <div className="space-y-12 animate-in fade-in">
             <div className="text-center space-y-4">
               <h2 className="text-5xl font-black tracking-tighter">Konstruksjonsforslag</h2>
-              <p className="text-slate-500 text-lg font-medium">Vi har tegnet 5 ulike varianter basert på dine mål og ønsker.</p>
+              <p className="text-slate-500 text-lg font-medium">Vi har tegnet 6 unike varianter til deg.</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-16">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {results.design_proposals.map((proposal, idx) => (
-                <div key={proposal.id} className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col md:row group hover:shadow-indigo-50 transition-all duration-700">
-                  <div className="md:w-1/2 bg-slate-900 relative cursor-zoom-in min-h-[400px]" onClick={() => proposal.visual_image && setSelectedImage(proposal.visual_image)}>
+                <div key={proposal.id} className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-slate-100 flex flex-col group hover:shadow-2xl transition-all duration-500">
+                  <div className="aspect-[4/3] bg-slate-900 relative cursor-zoom-in overflow-hidden" onClick={() => proposal.visual_image && setSelectedImage(proposal.visual_image)}>
                     {proposal.visual_image ? (
-                      <img src={proposal.visual_image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt="Tegning" />
+                      <img src={proposal.visual_image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt={`Variant ${idx+1}`} />
                     ) : (
-                      <div className="h-full flex items-center justify-center text-white/20"><Loader2 className="animate-spin w-12 h-12" /></div>
+                      <div className="h-full flex flex-col items-center justify-center text-white/40 space-y-3 bg-slate-800">
+                        <Loader2 className="animate-spin w-10 h-10" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Tegner...</span>
+                      </div>
                     )}
-                    <div className="absolute top-8 left-8 z-10">
-                       <span className="bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-[0.2em] shadow-2xl">Variant 0{idx+1}</span>
+                    <div className="absolute top-4 left-4 z-10">
+                       <span className="bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl">0{idx+1}</span>
                     </div>
                   </div>
                   
-                  <div className="md:w-1/2 p-12 flex flex-col justify-between">
+                  <div className="p-8 flex flex-col flex-grow justify-between space-y-6">
                     <div>
-                      <div className="flex justify-between items-start mb-8">
-                        <h3 className="text-3xl font-black uppercase tracking-tight text-slate-800 leading-none">{proposal.style_package}</h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-6 mb-8">
-                        <div><p className="text-[10px] font-black text-slate-300 uppercase mb-1">Frontmateriale</p><p className="text-sm font-bold text-slate-700">{proposal.fronts.material.replace('_', ' ')}</p></div>
-                        <div><p className="text-[10px] font-black text-slate-300 uppercase mb-1">Farge</p><p className="text-sm font-bold text-slate-700">{proposal.fronts.color}</p></div>
-                      </div>
-                      <div className="mb-10 space-y-4">
-                        <p className="text-[10px] font-black text-indigo-500 uppercase flex items-center gap-2"><Layers className="w-4 h-4" /> Konstruksjonsdetaljer</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          {proposal.internal_layout.map((item, i) => (
-                            <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs font-bold text-slate-600">
-                              <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" /> {item}
-                            </div>
-                          ))}
+                      <h3 className="text-xl font-black uppercase tracking-tight text-slate-800 mb-4 truncate">{proposal.style_package}</h3>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Materiale</p>
+                          <p className="text-[11px] font-bold text-slate-700 truncate">{proposal.fronts.material.replace('_', ' ')}</p>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Farge</p>
+                          <p className="text-[11px] font-bold text-slate-700 truncate">{proposal.fronts.color}</p>
                         </div>
                       </div>
-                      <p className="text-sm text-slate-400 leading-relaxed italic border-l-4 border-indigo-100 pl-6 mb-10">"{proposal.production_notes}"</p>
+
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 mb-2"><Layers className="w-3 h-3" /> Innredning</p>
+                        <div className="space-y-1.5 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                          {proposal.internal_layout.slice(0, 3).map((item, i) => (
+                            <div key={i} className="flex items-start gap-2 text-[10px] font-bold text-slate-600 leading-tight">
+                              <CheckCircle2 className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" /> {item}
+                            </div>
+                          ))}
+                          {proposal.internal_layout.length > 3 && (
+                            <p className="text-[9px] text-slate-400 font-bold ml-5">+ {proposal.internal_layout.length - 3} flere detaljer</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                    
                     <button 
                       onClick={() => { setSelectedProposalId(proposal.id); setStep('selected'); }}
-                      className="w-full py-5 bg-slate-900 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl active:scale-95"
+                      className="w-full py-4 bg-slate-900 hover:bg-indigo-600 text-white font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95 uppercase tracking-widest"
                     >
-                      Velg denne løsningen <Check className="w-6 h-6" />
+                      Velg design <Check className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -540,7 +564,7 @@ export default function App() {
         )}
 
         {step === 'report' && selectedProposal && (
-          <div className="animate-in fade-in py-12 print:py-0">
+          <div className="animate-in fade-in py-12 print:py-0 max-w-4xl mx-auto">
             <div ref={reportRef} id="pdf-report-content" className="pdf-report-layout bg-white shadow-2xl print:shadow-none border border-slate-100 report-container">
               
               <div className="p-16 min-h-[1000px] flex flex-col justify-between">

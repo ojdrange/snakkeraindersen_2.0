@@ -63,11 +63,11 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
     Du er Snekker AIndersen, en erfaren norsk møbelkonstruktør.
     Ditt fokus er KONSTRUKSJON og FUNKSJONALITET.
     Analysér brukerens beskrivelse for tekniske komponenter.
-    Du skal generere 5 varianter som tolker brukerens tekst på ulike måter.
+    Du skal generere nøyaktig 6 unike varianter som tolker brukerens tekst på ulike måter.
     Bruk norsk språk i alle tekster.
   `;
 
-  const prompt = `Konstruer 5 unike varianter av en ${inputs.productType}.
+  const prompt = `Konstruer 6 unike varianter av en ${inputs.productType}.
     DIMENSJONER: B:${inputs.width}mm, H:${inputs.height}mm, D:${inputs.depth}mm.
     BRUKERØNSKER: "${inputs.description}"`;
 
@@ -124,8 +124,9 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
       OPPGAVE: Visualiser en fotorealistisk ${inputs.productType} integrert perfekt i rommet på bildet.
       PLASSERING: x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
       STIL: ${proposal.style_package}.
+      DETALJER: Fronter i ${proposal.fronts.material} med fargen ${proposal.fronts.color}.
       ${refinementComment ? `ENDRINGSØNSKE: "${refinementComment}".` : ''}
-      KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger.
+      KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger. Returner kun det ferdige bildet.
     `;
 
     const response = await ai.models.generateContent({
