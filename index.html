@@ -16,7 +16,6 @@
         -webkit-font-smoothing: antialiased;
       }
       
-      /* PDF / Print Optimizations */
       @media print {
         body {
           background-color: white !important;
@@ -55,7 +54,6 @@
         page-break-inside: avoid;
       }
 
-      /* Custom scrollbar */
       .custom-scrollbar::-webkit-scrollbar {
         width: 4px;
       }
@@ -65,17 +63,6 @@
       .custom-scrollbar::-webkit-scrollbar-thumb {
         background: #e2e8f0;
         border-radius: 10px;
-      }
-
-      /* Transitions */
-      .step-enter {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      .step-enter-active {
-        opacity: 1;
-        transform: translateY(0);
-        transition: opacity 300ms, transform 300ms;
       }
     </style>
   <script type="importmap">
@@ -94,6 +81,7 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+    <script type="module" src="./index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

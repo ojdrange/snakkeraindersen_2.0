@@ -48,31 +48,15 @@ const PROPOSAL_SCHEMA = {
   required: ['id', 'style_package', 'carcass', 'fronts', 'handle_solution', 'lighting', 'dimensions_mm', 'internal_layout', 'visual_notes', 'production_notes']
 };
 
-const getAIClient = () => {
-  // Sjekker både VITE_ prefix og standard process.env
-  const apiKey = (import.meta as any).env?.VITE_API_KEY || process.env.API_KEY;
-  
-  if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    console.error("KRITISK FEIL: Ingen API-nøkkel funnet. Husk å sette VITE_API_KEY i Vercel.");
-    throw new Error("API-nøkkel mangler. Sjekk Vercel settings.");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
 const parseImageData = (dataUrl: string) => {
-  try {
-    const parts = dataUrl.split(',');
-    if (parts.length < 2) throw new Error("Ugyldig bildeformat");
-    const mimeType = parts[0].split(':')[1].split(';')[0];
-    const base64Data = parts[1];
-    return { mimeType, base64Data };
-  } catch (e) {
-    throw new Error("Klarte ikke å lese bildedata");
-  }
+  const parts = dataUrl.split(',');
+  const mimeType = parts[0].split(':')[1].split(';')[0];
+  const base64Data = parts[1];
+  return { mimeType, base64Data };
 };
 
 export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
   const systemInstruction = `
     Du er Snekker AIndersen, en ekspert på norske hjem og plassbygde møbler.
@@ -92,100 +76,76 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
     }
   } : null;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: imagePart ? { parts: [imagePart, { text: prompt }] } : prompt,
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            room_analysis: {
-              type: Type.OBJECT,
-              properties: {
-                room_type: { type: Type.STRING },
-                style_impression: { type: Type.STRING },
-                floor_tone: { type: Type.STRING, enum: ['warm', 'neutral', 'cold'] },
-                wall_tone: { type: Type.STRING, enum: ['light', 'medium', 'dark'] },
-                constraints: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ['room_type', 'style_impression', 'floor_tone', 'wall_tone', 'constraints']
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: imagePart ? { parts: [imagePart, { text: prompt }] } : prompt,
+    config: {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          room_analysis: {
+            type: Type.OBJECT,
+            properties: {
+              room_type: { type: Type.STRING },
+              style_impression: { type: Type.STRING },
+              floor_tone: { type: Type.STRING, enum: ['warm', 'neutral', 'cold'] },
+              wall_tone: { type: Type.STRING, enum: ['light', 'medium', 'dark'] },
+              constraints: { type: Type.ARRAY, items: { type: Type.STRING } }
             },
-            design_proposals: { type: Type.ARRAY, items: PROPOSAL_SCHEMA }
+            required: ['room_type', 'style_impression', 'floor_tone', 'wall_tone', 'constraints']
           },
-          required: ['room_analysis', 'design_proposals']
-        }
+          design_proposals: { type: Type.ARRAY, items: PROPOSAL_SCHEMA }
+        },
+        required: ['room_analysis', 'design_proposals']
       }
-    });
+    }
+  });
 
-    return JSON.parse(response.text);
-  } catch (err: any) {
-    console.error("Feil ved generering av forslag:", err);
-    throw new Error(`Forslagsfeil: ${err.message}`);
-  }
+  return JSON.parse(response.text);
 };
 
 export const visualizeProposal = async (baseImage: string, proposal: DesignProposal, inputs: UserInputs, refinementComment?: string): Promise<string | undefined> => {
-  try {
-    const ai = getAIClient();
-    const xPos = inputs.placement_point?.x || 50;
-    const yPos = inputs.placement_point?.y || 50;
-    const { mimeType, base64Data } = parseImageData(baseImage);
-    
-    const internalDetails = proposal.internal_layout.join(', ');
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  const xPos = inputs.placement_point?.x || 50;
+  const yPos = inputs.placement_point?.y || 50;
+  const { mimeType, base64Data } = parseImageData(baseImage);
+  
+  const internalDetails = proposal.internal_layout.join(', ');
 
-    const prompt = `
-      OPPGAVE: Tegn møbelet ${inputs.productType} inn i bildet med fotorealisme.
-      
-      PLASSERING OG RYDDING: 
-      - Møbelet skal sentreres rundt x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
-      - VIKTIG: Alt av eksisterende møbler eller rot i dette spesifikke området skal FJERNES HELT (inpainting).
-      
-      ARKITEKTONISK INTEGRASJON:
-      - Respekter dører og dørkarmer. Møbelet skal ALDRI dekke over en døråpning.
-      
-      UTFØRELSE:
-      - Stil: ${proposal.style_package}.
-      - Materiale: ${proposal.fronts.material.replace('_', ' ')} i fargen "${proposal.fronts.color}".
-      - Detaljer: ${internalDetails}. Grep: ${proposal.handle_solution.replace(/_/g, ' ')}.
-      ${refinementComment ? `- TILLEGGSØNSKE: "${refinementComment}".` : ''}
-    `;
+  const prompt = `
+    OPPGAVE: Tegn møbelet ${inputs.productType} inn i bildet med fotorealisme.
+    Plassering sentrert rundt x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
+    Stil: ${proposal.style_package}. Materiale: ${proposal.fronts.material}.
+    ${refinementComment ? `Endring: ${refinementComment}` : ''}
+  `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType,
-            },
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: mimeType,
           },
-          { text: prompt },
-        ],
-      },
-    });
+        },
+        { text: prompt },
+      ],
+    },
+  });
 
-    const candidate = response.candidates?.[0];
-    const parts = candidate?.content?.parts;
-    if (parts) {
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          return `data:image/png;base64,${part.inlineData.data}`;
-        }
-      }
+  for (const part of response.candidates[0].content.parts) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
     }
-    throw new Error("AI returnerte ikke et bilde. Prøv igjen.");
-  } catch (err: any) {
-    console.error("Visualiseringsfeil:", err);
-    throw new Error(err.message || "Tegningen feilet");
   }
+  return undefined;
 };
 
 export const refineSpecificProposal = async (original: DesignProposal, comment: string, _inputs: UserInputs): Promise<DesignProposal> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   const { visual_image, ...currentProposalData } = original;
 
   const response = await ai.models.generateContent({
