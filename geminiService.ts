@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIResponse, UserInputs, DesignProposal } from "./types";
 
@@ -56,9 +57,9 @@ const parseImageData = (dataUrl: string) => {
   return { mimeType, base64Data };
 };
 
+// Generate furniture proposals using gemini-3-pro-preview for complex reasoning
 export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
-  const apiKey = process.env.API_KEY || "";
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const systemInstruction = `
     Du er Snekker AIndersen, en ekspert på norske hjem og plassbygde møbler.
@@ -79,7 +80,7 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
   } : null;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     contents: imagePart ? { parts: [imagePart, { text: prompt }] } : { parts: [{ text: prompt }] },
     config: {
       systemInstruction,
@@ -110,9 +111,9 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
   return JSON.parse(text);
 };
 
+// Visualize design proposals using gemini-2.5-flash-image
 export const visualizeProposal = async (baseImage: string, proposal: DesignProposal, inputs: UserInputs, refinementComment?: string): Promise<string | undefined> => {
-  const apiKey = process.env.API_KEY || "";
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const xPos = inputs.placement_point?.x || 50;
   const yPos = inputs.placement_point?.y || 50;
@@ -154,13 +155,13 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
   return undefined;
 };
 
+// Refine a specific design proposal using gemini-3-pro-preview
 export const refineSpecificProposal = async (original: DesignProposal, comment: string, _inputs: UserInputs): Promise<DesignProposal> => {
-  const apiKey = process.env.API_KEY || "";
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const { visual_image, ...currentProposalData } = original;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     contents: {
       parts: [{
         text: `Oppdater dette møbelet basert på: "${comment}". Nåværende data: ${JSON.stringify(currentProposalData)}`
