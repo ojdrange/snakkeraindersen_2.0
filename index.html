@@ -13,14 +13,13 @@
         background-color: #f8fafc;
         margin: 0;
         padding: 0;
+        -webkit-font-smoothing: antialiased;
       }
       
       /* PDF / Print Optimizations */
       @media print {
         body {
           background-color: white !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
         }
         nav, footer, .print-hidden {
           display: none !important;
@@ -29,18 +28,31 @@
           width: 210mm;
           min-height: 297mm;
           padding: 15mm !important;
-          margin: 0 auto !important;
+          margin: 0 !important;
           box-shadow: none !important;
           border: none !important;
           page-break-after: always !important;
-          display: flex;
-          flex-direction: column;
+          display: block !important;
         }
-        .avoid-break {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          display: block;
+        img {
+          max-width: 100% !important;
         }
+      }
+
+      .report-page {
+        width: 100%;
+        max-width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        background: white;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .avoid-break {
+        break-inside: avoid;
+        page-break-inside: avoid;
       }
 
       /* Custom scrollbar */
@@ -53,6 +65,17 @@
       .custom-scrollbar::-webkit-scrollbar-thumb {
         background: #e2e8f0;
         border-radius: 10px;
+      }
+
+      /* Transitions */
+      .step-enter {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      .step-enter-active {
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 300ms, transform 300ms;
       }
     </style>
   <script type="importmap">
@@ -71,7 +94,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
