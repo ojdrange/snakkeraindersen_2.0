@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIResponse, UserInputs, DesignProposal } from "./types";
 
@@ -55,20 +54,14 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
   const systemInstruction = `
     Du er Snekker AIndersen, en erfaren norsk møbelkonstruktør.
     Ditt fokus er KONSTRUKSJON og FUNKSJONALITET.
-    
-    Analysér brukerens beskrivelse for tekniske komponenter:
-    - SKREVENT ANTALL: Hvis brukeren ber om f.eks. "3 skuffer" eller "2 dører", SKAL dette reflekteres i layout.
-    - MATERIALER: Identifisér "glass", "speil" (speilfronter), "eik", "malt".
-    - LED: Hvis "lys" eller "LED" nevnes, SKAL lighting.included være true.
-    
+    Analysér brukerens beskrivelse for tekniske komponenter.
     Du skal generere 5 varianter som tolker brukerens tekst på ulike måter.
     Bruk norsk språk i alle tekster.
   `;
 
   const prompt = `Konstruer 5 unike varianter av en ${inputs.productType}.
     DIMENSJONER: B:${inputs.width}mm, H:${inputs.height}mm, D:${inputs.depth}mm.
-    BRUKERØNSKER: "${inputs.description}"
-    HINDRINGER I ROMMET: "${inputs.constraints_text}"`;
+    BRUKERØNSKER: "${inputs.description}"`;
 
   const imagePart = inputs.image ? {
     inlineData: {
@@ -104,7 +97,9 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  const text = response.text;
+  if (!text) throw new Error("API-et returnerte ikke tekst.");
+  return JSON.parse(text);
 };
 
 export const visualizeProposal = async (baseImage: string, proposal: DesignProposal, inputs: UserInputs, refinementComment?: string): Promise<string | undefined> => {
@@ -116,23 +111,10 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
   
   const prompt = `
     OPPGAVE: Visualiser en fotorealistisk ${inputs.productType} integrert perfekt i rommet på bildet.
-    
-    PLASSERING (ABSULUTT VIKTIG): 
-    Møbelet SKAL tegnes med senterpunkt nøyaktig på disse koordinatene i bildet: x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
-    Dette punktet representerer bunnen/basen av møbelet mot veggen/gulvet.
-    Respekter perspektivet i rommet fullt ut.
-    
-    TEKNISK KONSTRUKSJON:
-    - KOMPONENTER: ${components}.
-    - FRONT-MATERIALE: ${proposal.fronts.material} (${proposal.fronts.color}).
-    - BELYSNING: ${proposal.lighting.included ? 'Inkluder integrert LED-lys (3000K) som lyser opp møbelet.' : 'Ingen lys.'}
-    - MÅL: B:${proposal.dimensions_mm.width}mm, H:${proposal.dimensions_mm.height}mm.
-    
+    PLASSERING: x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
     STIL: ${proposal.style_package}.
-    ${refinementComment ? `BRUKERENS ENDRINGSØNSKE (SKAL UTFØRES): "${refinementComment}".` : ''}
-    
-    KVALITET: Fotorealistisk 3D-visualisering. Realistiske skygger som faller naturlig på gulv og vegger. Refleksjoner i flater hvis aktuelt. 
-    Møbelet skal se ut som det er bygget inn i rommet på bildet.
+    ${refinementComment ? `ENDRINGSØNSKE: "${refinementComment}".` : ''}
+    KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger.
   `;
 
   const response = await ai.models.generateContent({
@@ -150,50 +132,36 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
     },
   });
 
-  for (const part of response.candidates[0].content.parts) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+  // Fikset TS18048/TS2532 med sikker tilgang
+  const candidate = response.candidates?.[0];
+  const parts = candidate?.content?.parts;
+  
+  if (parts) {
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
     }
   }
+  
   return undefined;
 };
 
-export const refineSpecificProposal = async (original: DesignProposal, comment: string, inputs: UserInputs): Promise<DesignProposal> => {
+export const refineSpecificProposal = async (original: DesignProposal, comment: string, _inputs: UserInputs): Promise<DesignProposal> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  
   const { visual_image, ...currentProposalData } = original;
-
-  const systemInstruction = `
-    Du er Snekker AIndersen. Du skal oppdatere en eksisterende møbelkonstruksjon basert på brukerens ønske.
-    Fokusér på strukturelle endringer (antall dører, materialvalg, belysning).
-    
-    Returner oppdatert JSON som følger samme skjema.
-    Bruk norsk språk.
-  `;
-
-  const prompt = `
-    OPPDATER KONSTRUKSJON.
-    Nåværende design: ${JSON.stringify(currentProposalData)}
-    BRUKERØNSKE OM ENDRING: "${comment}"
-    
-    Gjør de nødvendige endringene i materialer, layout og visual_notes.
-  `;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: prompt,
+    contents: `Oppdater denne JSON-konstruksjonen basert på ønske: "${comment}". Nåværende data: ${JSON.stringify(currentProposalData)}`,
     config: {
-      systemInstruction,
+      systemInstruction: "Du er Snekker AIndersen. Returner oppdatert møbel-JSON.",
       responseMimeType: "application/json",
       responseSchema: PROPOSAL_SCHEMA
     }
   });
 
-  try {
-    const updated = JSON.parse(response.text || '{}');
-    return updated;
-  } catch (e) {
-    console.error("Feil ved parsing av oppdatert JSON fra AI", e);
-    throw new Error("Snekkeren klarte ikke å forstå endringen din.");
-  }
+  const text = response.text;
+  if (!text) throw new Error("Kunne ikke oppdatere konstruksjonen.");
+  return JSON.parse(text);
 };
