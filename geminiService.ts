@@ -69,7 +69,8 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
 
   const prompt = `Konstruer 6 unike varianter av en ${inputs.productType}.
     DIMENSJONER: B:${inputs.width}mm, H:${inputs.height}mm, D:${inputs.depth}mm.
-    BRUKERØNSKER: "${inputs.description}"`;
+    BRUKERØNSKER: "${inputs.description}"
+    ROMBEGRENSNINGER: "${inputs.constraints_text}"`;
 
   const imagePart = inputs.image ? {
     inlineData: {
@@ -120,13 +121,18 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
     const xPos = inputs.placement_point?.x || 50;
     const yPos = inputs.placement_point?.y || 50;
     
+    const internalDetails = proposal.internal_layout.join(', ');
+    const lightingDetail = proposal.lighting.included ? `med integrert belysning (${proposal.lighting.type})` : 'uten belysning';
+
     const prompt = `
       OPPGAVE: Visualiser en fotorealistisk ${inputs.productType} integrert perfekt i rommet på bildet.
-      PLASSERING: x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
+      PLASSERING: Sentrert rundt x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
       STIL: ${proposal.style_package}.
-      DETALJER: Fronter i ${proposal.fronts.material} med fargen ${proposal.fronts.color}.
-      ${refinementComment ? `ENDRINGSØNSKE: "${refinementComment}".` : ''}
-      KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger. Returner kun det ferdige bildet.
+      MATERIALER: Fronter i ${proposal.fronts.material.replace('_', ' ')} i fargen ${proposal.fronts.color}. Stamme i ${proposal.carcass.color}.
+      KONSTRUKSJONSDETALJER: ${internalDetails}. ${lightingDetail}. Håndtaksløsning: ${proposal.handle_solution.replace(/_/g, ' ')}.
+      BRUKERENS SPESIELLE ØNSKER: "${inputs.description}"
+      ${refinementComment ? `EKSTRA ENDRING: "${refinementComment}".` : ''}
+      KVALITET: Profesjonell interiørfoto-stil, fotorealistisk 3D-rendering, naturlig lyssetting og skygger som matcher rommet.
     `;
 
     const response = await ai.models.generateContent({
