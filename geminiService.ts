@@ -49,14 +49,21 @@ const PROPOSAL_SCHEMA = {
 };
 
 const getAIClient = () => {
-  // Prøv både process.env.API_KEY og VITE_ prefix som ofte brukes i build-miljøer
   const apiKey = process.env.API_KEY || (import.meta as any).env?.VITE_API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    console.error("KRITISK FEIL: Ingen API-nøkkel funnet. Sjekk Vercel Environment Variables.");
-    throw new Error("API-nøkkel mangler. Vennligst sjekk konfigurasjonen.");
+    console.error("KRITISK FEIL: Ingen API-nøkkel funnet.");
+    throw new Error("API-nøkkel mangler. Sjekk Vercel settings.");
   }
   return new GoogleGenAI({ apiKey });
+};
+
+// Hjelpefunksjon for å trekke ut korrekt mime-type og base64-data
+const parseImageData = (dataUrl: string) => {
+  const parts = dataUrl.split(',');
+  const mimeType = parts[0].split(':')[1].split(';')[0];
+  const base64Data = parts[1];
+  return { mimeType, base64Data };
 };
 
 export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
@@ -75,8 +82,8 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
 
   const imagePart = inputs.image ? {
     inlineData: {
-      data: inputs.image.split(',')[1],
-      mimeType: 'image/jpeg',
+      data: parseImageData(inputs.image).base64Data,
+      mimeType: parseImageData(inputs.image).mimeType,
     }
   } : null;
 
@@ -120,6 +127,7 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
     const ai = getAIClient();
     const xPos = inputs.placement_point?.x || 50;
     const yPos = inputs.placement_point?.y || 50;
+    const { mimeType, base64Data } = parseImageData(baseImage);
     
     const internalDetails = proposal.internal_layout.join(', ');
 
@@ -128,20 +136,16 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
       
       PLASSERING OG RYDDING: 
       - Møbelet skal sentreres rundt x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
-      - VIKTIG: Alt av eksisterende møbler, rot eller gjenstander i dette området skal FJERNES HELT (inpainting). Det nye møbelet skal stå direkte mot veggen/gulvet der det gamle stod.
+      - VIKTIG: Alt av eksisterende møbler eller gjenstander i dette området skal FJERNES HELT.
       
       ARKITEKTONISK INTEGRASJON:
-      - Respekter dører og dørkarmer. Møbelet skal ALDRI dekke over en døråpning eller dørlist som er i bruk.
-      - Hvis møbelet er bredere enn plassen mellom en dør og en vegg, skal det tilpasses nøyaktig til karmen uten å overlappe.
-      - Pass på at møbelet følger rommets perspektiv og dybde.
+      - Respekter dører og dørkarmer. Møbelet skal ALDRI dekke over en døråpning.
       
       UTFØRELSE:
       - Stil: ${proposal.style_package}.
       - Materiale: ${proposal.fronts.material.replace('_', ' ')} i fargen "${proposal.fronts.color}".
       - Detaljer: ${internalDetails}. Grep: ${proposal.handle_solution.replace(/_/g, ' ')}.
-      ${refinementComment ? `- BRUKERENS SPESIFIKKE ENDRING: "${refinementComment}".` : ''}
-      
-      KVALITET: 8k oppløsning, perfekt lyssetting og skygger som matcher rommet.
+      ${refinementComment ? `- ENDRING: "${refinementComment}".` : ''}
     `;
 
     const response = await ai.models.generateContent({
@@ -150,8 +154,8 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
         parts: [
           {
             inlineData: {
-              data: baseImage.split(',')[1],
-              mimeType: 'image/jpeg',
+              data: base64Data,
+              mimeType: mimeType,
             },
           },
           { text: prompt },
@@ -168,9 +172,9 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
         }
       }
     }
-    throw new Error("Modellen returnerte ingen bildedata.");
+    throw new Error("AI returnerte ikke et bilde. Prøv en kortere beskrivelse.");
   } catch (err: any) {
-    console.error("Visualiseringsfeil i Gemini Service:", err);
+    console.error("Visualiseringsfeil:", err);
     throw err;
   }
 };
