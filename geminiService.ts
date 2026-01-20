@@ -98,7 +98,9 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
   });
 
   const text = response.text;
-  if (!text) throw new Error("API-et returnerte ikke tekst.");
+  if (!text) {
+    throw new Error("Snekkeren klarte ikke å generere forslag. Prøv igjen.");
+  }
   return JSON.parse(text);
 };
 
@@ -132,14 +134,15 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
     },
   });
 
-  // Fikset TS18048/TS2532 med sikker tilgang
-  const candidate = response.candidates?.[0];
-  const parts = candidate?.content?.parts;
-  
-  if (parts) {
-    for (const part of parts) {
-      if (part.inlineData?.data) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+  // Fikser TS18048 / TS2532 med sikker tilgang til candidates og parts
+  const candidates = response.candidates;
+  if (candidates && candidates.length > 0) {
+    const parts = candidates[0].content?.parts;
+    if (parts) {
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          return `data:image/png;base64,${part.inlineData.data}`;
+        }
       }
     }
   }
@@ -162,6 +165,8 @@ export const refineSpecificProposal = async (original: DesignProposal, comment: 
   });
 
   const text = response.text;
-  if (!text) throw new Error("Kunne ikke oppdatere konstruksjonen.");
+  if (!text) {
+    throw new Error("Kunne ikke oppdatere tegningen.");
+  }
   return JSON.parse(text);
 };
