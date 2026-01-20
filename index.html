@@ -11,47 +11,48 @@
       body {
         font-family: 'Inter', sans-serif;
         background-color: #f8fafc;
+        margin: 0;
+        padding: 0;
       }
+      
+      /* PDF / Print Optimizations */
       @media print {
         body {
           background-color: white !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        #root {
-          padding: 0 !important;
-          margin: 0 !important;
-        }
-        nav, footer, button, .print-hidden {
+        nav, footer, .print-hidden {
           display: none !important;
         }
-        .report-container {
+        .report-page {
+          width: 210mm;
+          min-height: 297mm;
+          padding: 15mm !important;
+          margin: 0 auto !important;
           box-shadow: none !important;
           border: none !important;
-          padding: 0 !important;
-          margin: 0 !important;
-          width: 100% !important;
+          page-break-after: always !important;
+          display: flex;
+          flex-direction: column;
         }
-        .page-break {
-          page-break-before: always !important;
-          break-before: page !important;
-        }
-        .page-break-inside-avoid {
+        .avoid-break {
           page-break-inside: avoid !important;
           break-inside: avoid !important;
-        }
-        @page {
-          margin: 1.5cm;
+          display: block;
         }
       }
-      .pdf-report-layout {
-        background: white !important;
-        color: #0f172a !important;
+
+      /* Custom scrollbar */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
       }
-      .html2pdf__page-break {
-        display: block;
-        height: 0;
-        page-break-before: always;
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #e2e8f0;
+        border-radius: 10px;
       }
     </style>
   <script type="importmap">
@@ -70,6 +71,7 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+    <script type="module" src="index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

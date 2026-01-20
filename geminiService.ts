@@ -50,8 +50,8 @@ const PROPOSAL_SCHEMA = {
 
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("API_KEY mangler i kjøremiljøet. Sjekk Vercel Settings > Environment Variables.");
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    throw new Error("API_KEY mangler i systemet. Vennligst sjekk konfigurasjonen.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -60,17 +60,15 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
   const ai = getAIClient();
 
   const systemInstruction = `
-    Du er Snekker AIndersen, en erfaren norsk møbelkonstruktør.
-    Ditt fokus er KONSTRUKSJON og FUNKSJONALITET.
-    Analysér brukerens beskrivelse for tekniske komponenter.
-    Du skal generere nøyaktig 6 unike varianter som tolker brukerens tekst på ulike måter.
-    Bruk norsk språk i alle tekster.
+    Du er Snekker AIndersen, en ledende norsk interiørarkitekt og snekker.
+    Din oppgave er å generere 6 unike, teknisk mulige forslag til et møbel.
+    Svaret skal være på norsk og returneres som ren JSON.
   `;
 
-  const prompt = `Konstruer 6 unike varianter av en ${inputs.productType}.
-    DIMENSJONER: B:${inputs.width}mm, H:${inputs.height}mm, D:${inputs.depth}mm.
-    BRUKERØNSKER: "${inputs.description}"
-    ROMBEGRENSNINGER: "${inputs.constraints_text}"`;
+  const prompt = `Konstruer 6 varianter av en ${inputs.productType}.
+    Mål: Bredde ${inputs.width}mm, Høyde ${inputs.height}mm, Dybde ${inputs.depth}mm.
+    Beskrivelse: "${inputs.description}"
+    Spesielle hensyn i rommet: "${inputs.constraints_text}"`;
 
   const imagePart = inputs.image ? {
     inlineData: {
@@ -108,10 +106,10 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
     });
 
     const text = response.text;
-    if (!text) throw new Error("Tomt svar fra AI-snekkeren.");
+    if (!text) throw new Error("AI returnerte ikke data.");
     return JSON.parse(text);
   } catch (err: any) {
-    throw new Error(`Feil ved generering: ${err.message}`);
+    throw new Error(`Klarte ikke å generere forslag: ${err.message}`);
   }
 };
 
@@ -122,17 +120,26 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
     const yPos = inputs.placement_point?.y || 50;
     
     const internalDetails = proposal.internal_layout.join(', ');
-    const lightingDetail = proposal.lighting.included ? `med integrert belysning (${proposal.lighting.type})` : 'uten belysning';
 
     const prompt = `
-      OPPGAVE: Visualiser en fotorealistisk ${inputs.productType} integrert perfekt i rommet på bildet.
-      PLASSERING: Sentrert rundt x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
-      STIL: ${proposal.style_package}.
-      MATERIALER: Fronter i ${proposal.fronts.material.replace('_', ' ')} i fargen ${proposal.fronts.color}. Stamme i ${proposal.carcass.color}.
-      KONSTRUKSJONSDETALJER: ${internalDetails}. ${lightingDetail}. Håndtaksløsning: ${proposal.handle_solution.replace(/_/g, ' ')}.
-      BRUKERENS SPESIELLE ØNSKER: "${inputs.description}"
-      ${refinementComment ? `EKSTRA ENDRING: "${refinementComment}".` : ''}
-      KVALITET: Profesjonell interiørfoto-stil, fotorealistisk 3D-rendering, naturlig lyssetting og skygger som matcher rommet.
+      OPPGAVE: Tegn møbelet ${inputs.productType} inn i bildet med ekstrem fotorealisme.
+      
+      PLASSERING OG FJERNING: 
+      - Markøren er plassert ved x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%. Dette markerer midten av møbelets bakvegg.
+      - VIKTIG: Hvis det står eksisterende møbler, hyller eller gjenstander i dette området, skal de FJERNES HELT (inpainting/cleanup). Det nye møbelet skal erstatte det gamle.
+      
+      ARKITEKTONISK RESPEKT:
+      - Analyser døråpninger, dørkarmer og lister.
+      - Møbelet skal ALDRI tegnes over eller dekke til dørblader, dørhåndtak eller åpne dørfelt hvis det står ved siden av en dør. Det skal stoppe nøyaktig ved dørkarmen.
+      - Møbelet skal integreres bak lister eller dørkarmer som befinner seg i forgrunnen.
+      
+      UTFØRELSE:
+      - Stil: ${proposal.style_package}.
+      - Materiale: ${proposal.fronts.material.replace('_', ' ')} i fargen "${proposal.fronts.color}".
+      - Detaljer: ${internalDetails}. Grep: ${proposal.handle_solution.replace(/_/g, ' ')}.
+      ${refinementComment ? `- EKSTRA ENDRING FRA BRUKER: "${refinementComment}".` : ''}
+      
+      KVALITET: Fotorealistisk 3D-integrasjon. Lyssetting og skygger må samsvare perfekt med rommets eksisterende lyskilder.
     `;
 
     const response = await ai.models.generateContent({
@@ -159,10 +166,11 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
         }
       }
     }
+    throw new Error("Ingen bilde generert.");
   } catch (err) {
     console.error("Visualiseringsfeil:", err);
+    throw err;
   }
-  return undefined;
 };
 
 export const refineSpecificProposal = async (original: DesignProposal, comment: string, _inputs: UserInputs): Promise<DesignProposal> => {
@@ -171,15 +179,15 @@ export const refineSpecificProposal = async (original: DesignProposal, comment: 
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Oppdater denne JSON-konstruksjonen basert på ønske: "${comment}". Nåværende data: ${JSON.stringify(currentProposalData)}`,
+    contents: `Oppdater dette møbelet i JSON-format basert på: "${comment}". Data: ${JSON.stringify(currentProposalData)}`,
     config: {
-      systemInstruction: "Du er Snekker AIndersen. Returner oppdatert møbel-JSON.",
+      systemInstruction: "Du er Snekker AIndersen. Returner kun oppdatert JSON-data.",
       responseMimeType: "application/json",
       responseSchema: PROPOSAL_SCHEMA
     }
   });
 
   const text = response.text;
-  if (!text) throw new Error("Kunne ikke oppdatere forslaget.");
+  if (!text) throw new Error("Kunne ikke oppdatere.");
   return JSON.parse(text);
 };
