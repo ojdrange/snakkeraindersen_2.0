@@ -1,0 +1,7 @@
+{
+  "name": "Snekker AIndersen",
+  "description": "AI-drevet møbeldesigner som analyserer rommet ditt og skaper realistiske, byggbare møbelforslag direkte i bildene dine.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
