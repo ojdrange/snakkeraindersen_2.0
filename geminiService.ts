@@ -49,7 +49,11 @@ const PROPOSAL_SCHEMA = {
 };
 
 export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  if (!process.env.API_KEY) {
+    throw new Error("API-nøkkel mangler. Vennligst legg til API_KEY i Vercel-innstillingene.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const systemInstruction = `
     Du er Snekker AIndersen, en erfaren norsk møbelkonstruktør.
@@ -70,44 +74,48 @@ export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AI
     }
   } : null;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: imagePart ? { parts: [imagePart, { text: prompt }] } : prompt,
-    config: {
-      systemInstruction,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          room_analysis: {
-            type: Type.OBJECT,
-            properties: {
-              room_type: { type: Type.STRING },
-              style_impression: { type: Type.STRING },
-              floor_tone: { type: Type.STRING, enum: ['warm', 'neutral', 'cold'] },
-              wall_tone: { type: Type.STRING, enum: ['light', 'medium', 'dark'] },
-              constraints: { type: Type.ARRAY, items: { type: Type.STRING } }
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: imagePart ? { parts: [imagePart, { text: prompt }] } : prompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            room_analysis: {
+              type: Type.OBJECT,
+              properties: {
+                room_type: { type: Type.STRING },
+                style_impression: { type: Type.STRING },
+                floor_tone: { type: Type.STRING, enum: ['warm', 'neutral', 'cold'] },
+                wall_tone: { type: Type.STRING, enum: ['light', 'medium', 'dark'] },
+                constraints: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ['room_type', 'style_impression', 'floor_tone', 'wall_tone', 'constraints']
             },
-            required: ['room_type', 'style_impression', 'floor_tone', 'wall_tone', 'constraints']
+            design_proposals: { type: Type.ARRAY, items: PROPOSAL_SCHEMA }
           },
-          design_proposals: { type: Type.ARRAY, items: PROPOSAL_SCHEMA }
-        },
-        required: ['room_analysis', 'design_proposals']
+          required: ['room_analysis', 'design_proposals']
+        }
       }
-    }
-  });
+    });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Snekkeren klarte ikke å generere forslag. Prøv igjen.");
+    const text = response.text;
+    if (!text) {
+      throw new Error("Snekkeren klarte ikke å generere et svar. Vennligst prøv igjen.");
+    }
+    return JSON.parse(text);
+  } catch (err: any) {
+    console.error("Gemini API Error:", err);
+    throw new Error(err.message || "Feil under kontakt med AI-snekkeren.");
   }
-  return JSON.parse(text);
 };
 
 export const visualizeProposal = async (baseImage: string, proposal: DesignProposal, inputs: UserInputs, refinementComment?: string): Promise<string | undefined> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
-  const components = proposal.internal_layout.join(", ");
   const xPos = inputs.placement_point?.x || 50;
   const yPos = inputs.placement_point?.y || 50;
   
@@ -119,25 +127,25 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
     KVALITET: Fotorealistisk 3D-visualisering med realistiske skygger.
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            data: baseImage.split(',')[1],
-            mimeType: 'image/jpeg',
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: baseImage.split(',')[1],
+              mimeType: 'image/jpeg',
+            },
           },
-        },
-        { text: prompt },
-      ],
-    },
-  });
+          { text: prompt },
+        ],
+      },
+    });
 
-  // Fikser TS18048 / TS2532 med sikker tilgang til candidates og parts
-  const candidates = response.candidates;
-  if (candidates && candidates.length > 0) {
-    const parts = candidates[0].content?.parts;
+    const candidate = response.candidates?.[0];
+    const parts = candidate?.content?.parts;
+    
     if (parts) {
       for (const part of parts) {
         if (part.inlineData?.data) {
@@ -145,6 +153,8 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
         }
       }
     }
+  } catch (err) {
+    console.error("Visualization Error:", err);
   }
   
   return undefined;

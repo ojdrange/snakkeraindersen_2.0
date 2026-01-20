@@ -380,6 +380,12 @@ export default function App() {
               value={inputs.description}
               onChange={(e) => setInputs({...inputs, description: e.target.value})}
             />
+            {error && (
+              <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 font-bold text-sm">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <div className="mt-10 flex gap-4">
               <button onClick={goBack} className="flex-1 py-6 bg-slate-100 text-slate-500 font-black rounded-[2.5rem] transition-all">Tilbake</button>
               <button onClick={handleGenerate} className="flex-[2] py-6 bg-indigo-600 text-white font-black text-2xl rounded-[2.5rem] shadow-2xl hover:bg-indigo-700 transition-all active:scale-95">Generer forslag</button>
@@ -537,7 +543,6 @@ export default function App() {
           <div className="animate-in fade-in py-12 print:py-0">
             <div ref={reportRef} id="pdf-report-content" className="pdf-report-layout bg-white shadow-2xl print:shadow-none border border-slate-100 report-container">
               
-              {/* SIDE 1 */}
               <div className="p-16 min-h-[1000px] flex flex-col justify-between">
                 <div>
                   <div className="border-b-8 border-slate-900 pb-12 mb-12 flex justify-between items-end">
@@ -604,10 +609,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* PDF SIDEBREAK MARKER */}
               <div className="html2pdf__page-break"></div>
 
-              {/* SIDE 2 */}
               <div className="p-16 min-h-[1000px] flex flex-col">
                 <div className="mb-12">
                   <h2 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-500 border-b-2 border-indigo-50 pb-2 flex items-center gap-2"><Layout className="w-4 h-4" /> Konstruksjonstegning</h2>
