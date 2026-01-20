@@ -5,64 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Snekker AIndersen - Profesjonell Møbelvisualisering</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
       body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f8fafc;
-        margin: 0;
-        padding: 0;
-        -webkit-font-smoothing: antialiased;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-color: #fcfcfd;
+        color: #0f172a;
       }
       
+      .glass-card {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .step-shadow {
+        box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.08);
+      }
+
       @media print {
-        body {
-          background-color: white !important;
-        }
-        nav, footer, .print-hidden {
-          display: none !important;
-        }
+        .print-hidden { display: none !important; }
         .report-page {
           width: 210mm;
           min-height: 297mm;
-          padding: 15mm !important;
-          margin: 0 !important;
-          box-shadow: none !important;
-          border: none !important;
-          page-break-after: always !important;
-          display: block !important;
+          padding: 20mm !important;
+          background: white !important;
+          page-break-after: always;
         }
-        img {
-          max-width: 100% !important;
-        }
-      }
-
-      .report-page {
-        width: 100%;
-        max-width: 210mm;
-        min-height: 297mm;
-        margin: 0 auto;
-        background: white;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-      }
-
-      .avoid-break {
-        break-inside: avoid;
-        page-break-inside: avoid;
-      }
-
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #e2e8f0;
-        border-radius: 10px;
       }
     </style>
   <script type="importmap">
@@ -77,11 +47,9 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+  </body>
 </html>
