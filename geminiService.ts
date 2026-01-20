@@ -49,21 +49,26 @@ const PROPOSAL_SCHEMA = {
 };
 
 const getAIClient = () => {
-  const apiKey = process.env.API_KEY || (import.meta as any).env?.VITE_API_KEY;
+  // Sjekker både VITE_ prefix og standard process.env
+  const apiKey = (import.meta as any).env?.VITE_API_KEY || process.env.API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    console.error("KRITISK FEIL: Ingen API-nøkkel funnet.");
+    console.error("KRITISK FEIL: Ingen API-nøkkel funnet. Husk å sette VITE_API_KEY i Vercel.");
     throw new Error("API-nøkkel mangler. Sjekk Vercel settings.");
   }
   return new GoogleGenAI({ apiKey });
 };
 
-// Hjelpefunksjon for å trekke ut korrekt mime-type og base64-data
 const parseImageData = (dataUrl: string) => {
-  const parts = dataUrl.split(',');
-  const mimeType = parts[0].split(':')[1].split(';')[0];
-  const base64Data = parts[1];
-  return { mimeType, base64Data };
+  try {
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) throw new Error("Ugyldig bildeformat");
+    const mimeType = parts[0].split(':')[1].split(';')[0];
+    const base64Data = parts[1];
+    return { mimeType, base64Data };
+  } catch (e) {
+    throw new Error("Klarte ikke å lese bildedata");
+  }
 };
 
 export const generateFurnitureProposals = async (inputs: UserInputs): Promise<AIResponse> => {
@@ -136,7 +141,7 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
       
       PLASSERING OG RYDDING: 
       - Møbelet skal sentreres rundt x=${xPos.toFixed(1)}%, y=${yPos.toFixed(1)}%.
-      - VIKTIG: Alt av eksisterende møbler eller gjenstander i dette området skal FJERNES HELT.
+      - VIKTIG: Alt av eksisterende møbler eller rot i dette spesifikke området skal FJERNES HELT (inpainting).
       
       ARKITEKTONISK INTEGRASJON:
       - Respekter dører og dørkarmer. Møbelet skal ALDRI dekke over en døråpning.
@@ -145,7 +150,7 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
       - Stil: ${proposal.style_package}.
       - Materiale: ${proposal.fronts.material.replace('_', ' ')} i fargen "${proposal.fronts.color}".
       - Detaljer: ${internalDetails}. Grep: ${proposal.handle_solution.replace(/_/g, ' ')}.
-      ${refinementComment ? `- ENDRING: "${refinementComment}".` : ''}
+      ${refinementComment ? `- TILLEGGSØNSKE: "${refinementComment}".` : ''}
     `;
 
     const response = await ai.models.generateContent({
@@ -172,10 +177,10 @@ export const visualizeProposal = async (baseImage: string, proposal: DesignPropo
         }
       }
     }
-    throw new Error("AI returnerte ikke et bilde. Prøv en kortere beskrivelse.");
+    throw new Error("AI returnerte ikke et bilde. Prøv igjen.");
   } catch (err: any) {
     console.error("Visualiseringsfeil:", err);
-    throw err;
+    throw new Error(err.message || "Tegningen feilet");
   }
 };
 
